@@ -453,3 +453,173 @@ LoadParameters
    改为 `CreateFileW` + `WriteFile` 追加写后稳定。
 6. **DPI**：exe 调用 `SetProcessDPIAware()`；PowerShell 截屏脚本也需要 `SetProcessDPIAware()`，
    否则 `GetWindowRect` 返回的是 150% 缩放后的 427×320 逻辑坐标。
+
+
+---
+
+## ⚠️ 适用范围（重要）
+
+本项目是**为特定分辨率的 USB 小屏定制的**：
+
+- 目标设备：**3.5 寸 USB 迷你屏**，物理分辨率 320×240，驱动下设置为 **640×480**
+- 程序按 **640×480** 设计三栏布局（左 160px 数据 / 中 320px Live2D / 右 160px 数据）
+- 启动时会自动寻找 **640×480 的显示器**并铺满；找不到则在主屏居中显示 640×480 窗口
+- **不保证适配其他分辨率/尺寸的屏幕**：窗口比例、字号、面板宽度都是按 640×480 写死的
+
+如果你的屏幕不是 640×480，需要自行调整：
+- `src/PanelRenderer.cpp` 里的面板宽度（160）、字号、行距
+- `src/main.cpp` 里的 viewport（160..480）和窗口尺寸
+
+## 📦 开箱即用的发布包
+
+在 [Releases](https://github.com/AyachiNeneCiallo/NeneCubismMiniScreen/releases) 页面下载 `NeneCubismMiniScreen.zip`，解压后**双击 `NeneCubism.exe`** 即可运行（已包含模型、着色器、依赖 DLL，无需编译）。
+
+包内结构：
+```
+NeneCubism.exe          主程序，双击运行
+Live2DCubismCore.dll    Cubism Core
+glew32.dll              OpenGL 加载器
+FrameworkShaders\       官方渲染着色器（22 个）
+model\                  模型目录（可替换，见下）
+model.cfg               人物位置/缩放记忆
+说明.txt                使用说明
+```
+
+## 🔄 如何更换模型
+
+程序支持任意 **Cubism 3/4/5 的 `.moc3` 模型**，只需替换 `model\` 目录内容：
+
+### 步骤
+
+1. **准备模型文件夹**，必须包含：
+   ```
+   model\
+   ├── xxx.model3.json        ← 模型配置（必需）
+   ├── xxx.moc3               ← 模型数据（必需）
+   ├── xxx.physics3.json      ← 物理（可选，没有则头发不摆动）
+   ├── 贴图目录\               ← 例如 xxx.8192\texture_00.png（必需）
+   ├── motion\                ← 动作文件 *.motion3.json（可选）
+   └── expression\            ← 表情文件 *.exp3.json（可选）
+   ```
+
+2. **把整个文件夹的内容**复制到 `E:\宁宁迷你屏\model\`（覆盖旧文件）
+
+3. **删除 `model.cfg`**（或改成 `0,0.30,0.42`），避免沿用上一个模型的取景导致人物偏移/过大
+
+4. **双击运行**，如果人物大小/位置不合适：
+   - 点击右上角**铅笔按钮**解除锁定
+   - **滚轮**缩放（50%~300%），**左键拖拽**平移
+   - 调整好后点击按钮锁定，配置会保存到 `model.cfg`
+
+### 注意事项
+
+- 程序会自动扫描 `model\` 目录下**第一个** `*.model3.json`（会跳过 `Live2DViewerEX.model3.json`），所以文件夹里有多份配置时请注意
+- 动作文件按**体积最大**的自动选为默认待机动作；可用 `--motion <序号>` 切换
+- 模型自带的 `vioce\` 语音目录不会被使用（本项目不含语音功能），可以删掉省空间
+- 若模型使用了**不同的参数名**（不是标准 `ParamAngleX` 等），视线追踪/摸头/脸红等功能可能无效，但基本待机显示不受影响
+
+## 🛠️ 从源码构建
+
+### 依赖
+
+| 依赖 | 版本 | 获取方式 |
+|------|------|---------|
+| Visual Studio Build Tools | 2019/2022/2026 | https://visualstudio.microsoft.com/downloads/ |
+| CMake | 3.20+ | VS 自带或 https://cmake.org/ |
+| **Cubism SDK for Native** | **5-r.5** | https://www.live2d.com/download/cubism-sdk/ （需同意协议） |
+| GLEW | 2.2.0 (x64 DLL 版) | https://glew.sourceforge.net/ |
+| 模型文件 | 自备 | 见上文"如何更换模型" |
+
+### 放置第三方库
+
+```
+E:\测试\CubismApp\
+├── CMakeLists.txt
+├── src\
+└── third_party\
+    └── glew-2.2.0\
+        ├── include\GL\...
+        ├── lib\Release\x64\glew32.lib
+        └── bin\Release\x64\glew32.dll
+```
+
+`sdk` 路径在 `CMakeLists.txt` 顶部修改：
+```cmake
+set(SDK_ROOT "E:/测试/CubismSdk/CubismSdkForNative-5-r.5")
+```
+
+### 构建命令
+
+```powershell
+# 关键：Windows 上同时存在 NO_PROXY/no_proxy 会让 VS 的 MSBuild 崩（MSB6001）
+[Environment]::SetEnvironmentVariable('no_proxy',$null,'Process')
+[Environment]::SetEnvironmentVariable('http_proxy',$null,'Process')
+[Environment]::SetEnvironmentVariable('https_proxy',$null,'Process')
+
+$cmake = 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
+& $cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+& $cmake --build build --config Release --parallel 8
+```
+
+产物：`build\bin\NeneCubism.exe`
+
+### 部署
+
+把以下文件放到同一目录：
+
+```
+NeneCubism.exe
+Live2DCubismCore.dll          ← 从 SDK 的 Core\dll\windows\x86_64\ 拷贝
+glew32.dll                    ← 从 GLEW 的 bin\Release\x64\ 拷贝
+FrameworkShaders\             ← 从 SDK 的 Framework\src\Rendering\OpenGL\Shaders\ 拷贝
+model\                        ← 你自己的模型
+```
+
+## 🎮 使用说明
+
+| 操作 | 效果 |
+|------|------|
+| 鼠标移动 | 视线跟随（转头/抬头，身体不晃） |
+| 点击**头部** | 摸头动作 + 脸红 |
+| 点击**胸口** | 0721 动作 + 脸红 |
+| 滚轮 | 缩放人物 50%~300%（以鼠标位置为中心） |
+| 左键拖拽 | 平移人物 |
+| 右上角按钮 | 绿色=可编辑（显示缩放比例）/ 灰色=锁定 |
+| 右下角复选框 | 开机自启开关 |
+| 托盘图标 左键 | 显示/隐藏窗口 |
+| 托盘图标 右键 | 显示/隐藏、锁定、开机启动、退出 |
+
+### 命令行参数
+
+```
+--panels / --no-panels       显示/隐藏数据面板（默认显示）
+--width <w> --height <h>     自定义窗口尺寸（默认自动检测 640x480 显示器）
+--cx --cy --hh               手动指定取景中心和半高
+--motion <序号|名称>          切换待机动作
+--track-gain <0~3>           视线追踪强度
+--motion-gain <0~3>          动作幅度倍率
+--hair-sway <0~3>            头发静止轻摆幅度
+--physics on/off             是否启用模型自带物理
+--ssaa <倍数>                超采样倍数（默认 2）
+--topmost / --nofocus        置顶 / 不抢焦点
+--no-tray                    不创建托盘图标（恢复任务栏按钮，调试用）
+--install-autostart          写入开机自启
+--remove-autostart           移除开机自启
+--snapshot <png> --exit      截图后退出（调试用）
+```
+
+## 📊 资源占用（实测）
+
+| 指标 | 数值 |
+|------|------|
+| 工作集内存 | ~152 MB |
+| CPU（任务管理器口径，32 核） | 0.39% 平均 / 0.85% 峰值 |
+| GPU 3D 引擎 | ~1.7% |
+| 帧率 | ~60 fps |
+| 线程数 | 9 |
+
+## ⚖️ 版权说明
+
+- **代码**：本仓库的源代码可自由使用、修改
+- **模型**：宁宁（綾地寧々）模型版权归原作者/游戏公司所有，**不在本仓库分发**，发布包中的模型仅供本地使用，请勿再分发
+- **Cubism SDK**：Live2D Cubism SDK 遵循 [Live2D 专有许可](https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_cn.html)
