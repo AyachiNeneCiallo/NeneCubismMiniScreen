@@ -26,3 +26,7 @@ model/
 
 # 截图
 shots/
+
+# 发布包（允许入库，供 Release 链接使用）
+!dist/*.zip
+
