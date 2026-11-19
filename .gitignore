@@ -1,0 +1,28 @@
+﻿# 构建产物
+build/
+out/
+bin/
+obj/
+
+# 第三方二进制（GLEW/GLFW 等由脚本或手动放置）
+third_party/glew-2.2.0/
+third_party/*.dll
+third_party/*.lib
+
+# 模型资源（版权内容，不入库）
+model/
+*.moc3
+*.motion3.json
+*.exp3.json
+*.physics3.json
+*.png
+!res/icon.png
+
+# 运行产物
+*.log
+*.cfg
+*.exe
+*.dll
+
+# 截图
+shots/
