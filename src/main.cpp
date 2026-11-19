@@ -1,4 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
+﻿#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
 #include <shellscalingapi.h>
@@ -311,7 +311,7 @@ namespace
         std::string modelDir;
         std::string expression;
         bool idleBreathOnly = false;
-        float trackGain = 1.0f;
+        float trackGain = 1.8f;   // 默认追踪强度（用户实测 1.8 最合适）
         float motionGain = 1.0f;
         bool bodySway = false;
         std::vector<std::pair<std::string, float>> debugParams;
@@ -2543,3 +2543,4 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
 
     return 0;
 }
+
