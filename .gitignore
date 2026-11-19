@@ -26,6 +26,5 @@ model/
 
 # 截图
 shots/
-
-
+!docs/*.png
 

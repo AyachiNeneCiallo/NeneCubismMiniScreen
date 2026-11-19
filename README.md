@@ -1,4 +1,4 @@
-# NeneCubism — 官方 Cubism Native Framework 5-r.5 渲染器 + 迷你屏性能面板
+﻿# NeneCubism — 官方 Cubism Native Framework 5-r.5 渲染器 + 迷你屏性能面板
 
 Win32 + WGL + 官方 `CubismRenderer_OpenGLES2` 渲染 `綾地寧々`，替代原先手写的 C# 渲染器。
 所有 Live2D 渲染（遮罩/clipping、混合模式、乘算颜色、预乘 alpha）全部由官方 Framework 完成，本工程没有自写渲染管线。
@@ -6,6 +6,10 @@ Win32 + WGL + 官方 `CubismRenderer_OpenGLES2` 渲染 `綾地寧々`，替代�
 **单一 exe、单一窗口**：在原来的 Live2D 渲染器上整合了原 Python 迷你屏监视器的全部数据采集与
 绘制逻辑（C++ / PDH / NVML / GetIfTable2 / GDI+），640×480 窗口内左 160 px 数据面板、
 中间 320 px Live2D、右 160 px 数据面板，白底 + 粉色文字（`#FF66FF`）。
+
+![运行效果](docs/screenshot.png)
+
+*3.5 寸 USB 迷你屏实机截图（640×480）：左侧 CPU / GPU 3D / GPU CUDA / 显存，中间 Live2D 宁宁，右侧 GPU 温度 / 内存 / 网络上下行 / 开机启动。*
 
 ## 构建
 
@@ -548,7 +552,11 @@ E:\测试\CubismApp\
 set(SDK_ROOT "E:/测试/CubismSdk/CubismSdkForNative-5-r.5")
 ```
 
-### 构建命令
+#![运行效果](docs/screenshot.png)
+
+*3.5 寸 USB 迷你屏实机截图（640×480）：左侧 CPU / GPU 3D / GPU CUDA / 显存，中间 Live2D 宁宁，右侧 GPU 温度 / 内存 / 网络上下行 / 开机启动。*
+
+## 构建命令
 
 ```powershell
 # 关键：Windows 上同时存在 NO_PROXY/no_proxy 会让 VS 的 MSBuild 崩（MSB6001）
@@ -623,3 +631,4 @@ model\                        ← 你自己的模型
 - **代码**：本仓库的源代码可自由使用、修改
 - **模型**：宁宁（綾地寧々）模型版权归原作者/游戏公司所有，**不在本仓库分发**，发布包中的模型仅供本地使用，请勿再分发
 - **Cubism SDK**：Live2D Cubism SDK 遵循 [Live2D 专有许可](https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_cn.html)
+
