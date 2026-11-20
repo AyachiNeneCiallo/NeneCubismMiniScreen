@@ -1,4 +1,4 @@
-﻿#define WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
 #include <shellscalingapi.h>
@@ -291,6 +291,12 @@ namespace
         // window aspect ratio" (the 640x480 default).
         float halfWidth = 0.0f;
         bool topmost = false;
+        // True when --topmost was given explicitly; the command line always
+        // wins over the saved state in model.cfg.
+        bool topmostSet = false;
+        // Topmost flag loaded from model.cfg (4th, optional field).
+        bool configTopmost = false;
+        bool configTopmostValid = false;
         bool noFocus = false;
         // True when the process was started without any CLI argument (e.g. a
         // double click on the packaged build). In that case a matching mini
@@ -743,6 +749,7 @@ namespace
             else if (arg == "--topmost")
             {
                 options.topmost = true;
+                options.topmostSet = true;
             }
             else if (arg == "--nofocus")
             {
@@ -855,6 +862,18 @@ namespace
             const float aspect = static_cast<float>(options.modelWidth) /
                                  static_cast<float>(options.modelHeight);
             options.halfWidth = options.halfHeight * aspect;
+            // --topmost is explicit and wins; otherwise restore the saved flag.
+            if (!options.topmostSet)
+            {
+                options.topmost = options.configTopmost;
+                LogMsg("[config] restored topmost=%d from model.cfg",
+                       options.topmost ? 1 : 0);
+            }
+            else
+            {
+                LogMsg("[config] topmost=%d from --topmost (model.cfg topmost=%d ignored)",
+                       options.topmost ? 1 : 0, options.configTopmost ? 1 : 0);
+            }
         }
         return options;
     }
@@ -878,6 +897,8 @@ namespace
     ViewState g_view;
     bool g_editMode = false;       // model edit lock is OFF by default
     bool g_persistModel = true;
+    // Current topmost state of the window, mirrored into model.cfg.
+    bool g_topmost = false;
     HDC g_fontDc = nullptr;
     GLuint g_fontListBase = 0;
     bool g_fontReady = false;
@@ -929,9 +950,13 @@ namespace
         float centerX = options.centerX;
         float centerY = options.centerY;
         float halfHeight = options.halfHeight;
-        const int count = fscanf(file, "%f,%f,%f", &centerX, &centerY, &halfHeight);
+        int topmostValue = 0;
+        // The 4th field is optional so files written by older builds
+        // ("cx,cy,hh") still load and simply mean "not topmost".
+        const int count = fscanf(file, "%f,%f,%f,%d", &centerX, &centerY, &halfHeight,
+                                 &topmostValue);
         fclose(file);
-        if (count != 3 || halfHeight <= 0.0f)
+        if (count < 3 || halfHeight <= 0.0f)
         {
             LogMsg("[config] model.cfg ignored (invalid content)");
             return false;
@@ -942,9 +967,12 @@ namespace
         options.centerX = centerX;
         options.centerY = centerY;
         options.halfHeight = halfHeight;
-        LogMsg("[config] model.cfg cx=%.4f cy=%.4f hh=%.4f (%d%%)",
+        options.configTopmostValid = true;
+        options.configTopmost = (count >= 4) && topmostValue != 0;
+        LogMsg("[config] model.cfg cx=%.4f cy=%.4f hh=%.4f (%d%%) topmost=%d (fields=%d)",
                centerX, centerY, halfHeight,
-               static_cast<int>(lroundf(g_baseHalfHeight / halfHeight * 100.0f)));
+               static_cast<int>(lroundf(g_baseHalfHeight / halfHeight * 100.0f)),
+               options.configTopmost ? 1 : 0, count);
         return true;
     }
 
@@ -961,8 +989,9 @@ namespace
             LogMsg("[config] cannot write model.cfg");
             return;
         }
-        fprintf(file, "%.6f,%.6f,%.6f\n",
-                g_view.centerX, g_view.centerY, g_view.halfHeight);
+        fprintf(file, "%.6f,%.6f,%.6f,%d\n",
+                g_view.centerX, g_view.centerY, g_view.halfHeight,
+                g_topmost ? 1 : 0);
         fclose(file);
     }
 
@@ -1671,6 +1700,21 @@ namespace
                options.x, options.y, scale);
     }
 
+    void ApplyTopmost(HWND hwnd, bool topmost)
+    {
+        SetWindowPos(hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        g_topmost = topmost;
+        LogMsg("[win] topmost=%d exstyle=0x%08lX",
+               topmost ? 1 : 0,
+               static_cast<unsigned long>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE)));
+    }
+
+    bool IsWindowTopmost(HWND hwnd)
+    {
+        return (GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
+    }
+
     bool CreateGlWindow(HINSTANCE instance, const Options& options, HWND& outWindow,
                         HDC& outDc, HGLRC& outGlrc)
     {
@@ -1816,13 +1860,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
 
     ResolveWindowPlacement(options);
     // Double-click / shortcut launch (no arguments): behave like a mini-screen
-    // gadget. Use --topmost/--no-focus on the panel, but keep the normal
-    // desktop behaviour when no mini screen is present.
+    // gadget. Use --no-focus on the panel. The topmost flag is whatever the
+    // command line (highest priority) or model.cfg says; with neither it stays
+    // off so normal applications can cover the window.
     if (options.noArguments && options.placedOnMiniScreen)
     {
-        options.topmost = true;
         options.noFocus = true;
-        LogMsg("[win] no-argument launch on mini screen: topmost=1 nofocus=1");
+        LogMsg("[win] no-argument launch on mini screen: topmost=%d (%s) nofocus=1",
+               options.topmost ? 1 : 0,
+               options.topmostSet ? "command line"
+                                  : (options.configTopmostValid ? "model.cfg" : "default"));
     }
     g_uiScale = options.uiScale > 0.0f ? options.uiScale : 1.0f;
     options.windowPixelWidth =
@@ -1840,6 +1887,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
     g_logicalWindowHeight = options.height;
     // Automated snapshot runs must not overwrite the saved model transform.
     g_persistModel = options.snapshotPath.empty();
+    g_topmost = options.topmost;
     g_view.centerX = options.centerX;
     g_view.centerY = options.centerY;
     g_view.halfHeight = options.halfHeight;
@@ -1908,6 +1956,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
                  SWP_SHOWWINDOW | showFlags);
     ShowWindow(window, options.noFocus ? SW_SHOWNOACTIVATE : SW_SHOW);
     UpdateWindow(window);
+    LogMsg("[win] window shown, topmost=%d exstyle=0x%08lX",
+           g_topmost ? 1 : 0,
+           static_cast<unsigned long>(GetWindowLongPtrW(window, GWL_EXSTYLE)));
 
     const GLenum glewResult = glewInit();
     LogMsg("[gl] glewInit=%d vendor=%s renderer=%s version=%s",
@@ -2070,7 +2121,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
         tray.onShowWindow = [&]()
         {
             ShowWindow(window, SW_SHOWNOACTIVATE);
-            SetWindowPos(window, options.topmost ? HWND_TOPMOST : HWND_TOP,
+            SetWindowPos(window, g_topmost ? HWND_TOPMOST : HWND_TOP,
                          0, 0, 0, 0,
                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         };
@@ -2090,6 +2141,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
         tray.isLocked = [&]()
         {
             return !g_editMode;
+        };
+        tray.onToggleTopmost = [&]()
+        {
+            const bool newState = !IsWindowTopmost(window);
+            ApplyTopmost(window, newState);
+            LogMsg("[tray] topmost toggled -> %d", g_topmost ? 1 : 0);
+            SaveModelConfig();
+        };
+        tray.isTopmost = [&]()
+        {
+            return IsWindowTopmost(window);
         };
         tray.onToggleAutostart = [&]()
         {

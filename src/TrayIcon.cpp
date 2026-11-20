@@ -14,7 +14,8 @@ namespace
         kCmdToggleWindow = 40001,
         kCmdToggleLock = 40002,
         kCmdToggleAutostart = 40003,
-        kCmdExit = 40004
+        kCmdExit = 40004,
+        kCmdToggleTopmost = 40005
     };
 
     void CopyTip(wchar_t (&dest)[128], const std::wstring& text)
@@ -194,6 +195,9 @@ void TrayIcon::ShowContextMenu()
 {
     const bool visible = isWindowVisible && isWindowVisible();
     const bool locked = isLocked && isLocked();
+    // Re-read the real window state every time the menu opens, so the check
+    // mark always matches the actual WS_EX_TOPMOST bit.
+    const bool topmost = isTopmost && isTopmost();
     const bool autostart = isAutostart && isAutostart();
 
     HMENU menu = CreatePopupMenu();
@@ -205,6 +209,8 @@ void TrayIcon::ShowContextMenu()
                 visible ? L"隐藏窗口" : L"显示窗口");
     AppendMenuW(menu, MF_STRING | (locked ? MF_CHECKED : 0), kCmdToggleLock,
                 L"锁定模型");
+    AppendMenuW(menu, MF_STRING | (topmost ? MF_CHECKED : 0), kCmdToggleTopmost,
+                L"置顶显示");
     AppendMenuW(menu, MF_STRING | (autostart ? MF_CHECKED : 0), kCmdToggleAutostart,
                 L"开机启动");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
@@ -243,6 +249,9 @@ void TrayIcon::HandleCommand(int commandId)
     }
     case kCmdToggleLock:
         if (onToggleLock) onToggleLock();
+        break;
+    case kCmdToggleTopmost:
+        if (onToggleTopmost) onToggleTopmost();
         break;
     case kCmdToggleAutostart:
         if (onToggleAutostart) onToggleAutostart();

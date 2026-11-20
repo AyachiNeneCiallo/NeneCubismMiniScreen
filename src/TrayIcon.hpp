@@ -25,6 +25,8 @@ public:
     std::function<bool()> isWindowVisible;
     std::function<void()> onToggleLock;
     std::function<bool()> isLocked;
+    std::function<void()> onToggleTopmost;
+    std::function<bool()> isTopmost;
     std::function<void()> onToggleAutostart;
     std::function<bool()> isAutostart;
     std::function<void()> onExit;

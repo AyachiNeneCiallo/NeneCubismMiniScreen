@@ -1,4 +1,4 @@
-﻿# NeneCubism — 官方 Cubism Native Framework 5-r.5 渲染器 + 迷你屏性能面板
+# NeneCubism — 官方 Cubism Native Framework 5-r.5 渲染器 + 迷你屏性能面板
 
 Win32 + WGL + 官方 `CubismRenderer_OpenGLES2` 渲染 `綾地寧々`，替代原先手写的 C# 渲染器。
 所有 Live2D 渲染（遮罩/clipping、混合模式、乘算颜色、预乘 alpha）全部由官方 Framework 完成，本工程没有自写渲染管线。
@@ -41,7 +41,9 @@ exe + `Live2DCubismCore.dll` + `glew32.dll` + `FrameworkShaders\` + `model\`（�
 + `model.cfg` + `说明.txt`。程序始终按 exe 所在目录解析着色器、模型、日志和 `model.cfg`，
 不依赖当前工作目录；模型路径优先级为 `<exeDir>\model\` → 开发目录 `E:\L2D宁宁\...`。
 
-无参数双击时：检测到 640×480 迷你屏（`\\.\DISPLAY30/31`，2560,0）就铺满、置顶、不抢焦点；
+无参数双击时：检测到 640×480 迷你屏（`\\.\DISPLAY30/31`，2560,0）就铺满、不抢焦点；
+置顶状态来自托盘右键菜单「置顶显示」的勾选（保存在 `model.cfg` 第 4 个字段），首次运行默认不置顶，
+其他应用窗口可以正常覆盖它（`--topmost` 显式指定时优先级最高，覆盖配置文件）。
 否则主屏居中显示 640×480。开机自启可直接勾选窗口右下角「开机启动」。
 
 ## 运行
@@ -81,7 +83,7 @@ cd 'E:\测试\CubismApp\build\bin'
 | `--width <n>` / `--height <n>` | 窗口逻辑尺寸，默认 640×480（固定不可缩放） |
 | `--hw <v>` | 手动指定相机水平半宽（模型空间）；缺省按中间 320×480 的比例自动计算 |
 | `--bg RRGGBB` | 背景纯色，默认 FFFFFF |
-| `--topmost` | 窗口置顶（迷你屏上仍有 Live2DViewerEX 盖住时使用） |
+| `--topmost` | 窗口置顶；显式指定时优先级最高，覆盖 `model.cfg` 中保存的置顶状态 |
 | `--nofocus` | 启动时不抢焦点 |
 | `--snapshot <png>` | 渲染若干帧后用 `glReadPixels` 存 PNG（物理窗口内容） |
 | `--frames <n>` | 第 n 帧截图，默认 3 |
@@ -138,8 +140,17 @@ cd 'E:\测试\CubismApp\build\bin'
 
 - 悬停提示：“宁宁迷你屏” + 当前 CPU / GPU / 温度摘要（每秒随采样更新）。
 - 左键单击：显示 / 隐藏窗口；双击：显示窗口。
-- 右键菜单：显示/隐藏（勾选）、锁定/解锁模型（勾选）、开机启动（勾选）、分隔线、退出。
+- 右键菜单：显示/隐藏（勾选）、锁定/解锁模型（勾选）、置顶显示（勾选）、开机启动（勾选）、
+  分隔线、退出。
+  「置顶显示」切换窗口的 `WS_EX_TOPMOST`：勾选 = `SetWindowPos(HWND_TOPMOST, …,
+  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)`，取消 = `HWND_NOTOPMOST`（同样参数）。
+  每次打开菜单都用 `GetWindowLongPtrW(GWL_EXSTYLE) & WS_EX_TOPMOST` 刷新勾选状态；
+  切换后立即写入 `model.cfg`，退出时再写一次，下次启动恢复；`--topmost` 优先于配置文件。
 - 退出时 `NIM_DELETE` 移除托盘图标。
+- 置顶验证截图：`shots/tray_menu_topmost_checked.png`（菜单里「置顶显示」已勾选）、
+  `shots/topmost_on_notepad_behind.png`（置顶时记事本在迷你屏上盖不住窗口）、
+  `shots/topmost_off_notepad_covers.png`（取消置顶后记事本盖住窗口）、
+  `shots/restart_topmost_restored.png`（重启后自动恢复置顶）。
 - `--no-tray`：不注册托盘图标，窗口改回 `WS_EX_APPWINDOW`（任务栏可见），便于调试。
 
 ### 模型编辑锁（右上角按钮）
@@ -157,11 +168,13 @@ Live2D 区域（中间 320×480）的右上角有一个 28×28 的圆角按钮�
 模型的位置和缩放保存到 exe 同目录的 `model.cfg`：
 
 ```
-cx,cy,hh
+cx,cy,hh,topmost
 ```
 
-例如 `-0.304076,0.406461,0.638767`。拖拽结束、滚轮缩放和退出时写入，下次启动恢复；
-`--snapshot` 自动化截图不读取也不写入该文件。
+例如 `-0.304076,0.406461,0.638767,0`。前三个字段是取景中心 X/Y 与半高；第 4 个字段（`0`/`1`）
+是窗口置顶状态，**可选**——只有 3 个字段的旧文件按“不置顶”处理，完全向后兼容。
+拖拽结束、滚轮缩放、切换「置顶显示」和退出时写入，下次启动恢复；
+`--snapshot` 自动化截图不读取也不写入该文件；`--topmost` 显式指定时优先于文件中的值。
 
 窗口位置/尺寸不保存；每次启动按 640×480 自动放到迷你屏（无则主屏居中），可用命令行参数覆盖。
 
@@ -531,7 +544,8 @@ model.cfg               人物位置/缩放记忆
 
 ### ⚠️ 为什么必须删 model.cfg
 
-`model.cfg` 存的是 `cx,cy,hh`（取景中心 X/Y + 半高），它**绑定的是上一个模型的画布尺寸**。
+`model.cfg` 存的是 `cx,cy,hh[,topmost]`（取景中心 X/Y + 半高，可选的置顶状态），
+其中取景部分**绑定的是上一个模型的画布尺寸**。
 
 不同模型的画布差异很大：
 
@@ -675,7 +689,7 @@ model\                        ← 你自己的模型
 | 右上角按钮 | 绿色=可编辑（显示缩放比例）/ 灰色=锁定 |
 | 右下角复选框 | 开机自启开关 |
 | 托盘图标 左键 | 显示/隐藏窗口 |
-| 托盘图标 右键 | 显示/隐藏、锁定、开机启动、退出 |
+| 托盘图标 右键 | 显示/隐藏、锁定、置顶显示、开机启动、退出 |
 
 ### 命令行参数
 
@@ -689,7 +703,7 @@ model\                        ← 你自己的模型
 --hair-sway <0~3>            头发静止轻摆幅度
 --physics on/off             是否启用模型自带物理
 --ssaa <倍数>                超采样倍数（默认 2）
---topmost / --nofocus        置顶 / 不抢焦点
+--topmost / --nofocus        置顶（覆盖 model.cfg 里的置顶状态）/ 不抢焦点
 --no-tray                    不创建托盘图标（恢复任务栏按钮，调试用）
 --install-autostart          写入开机自启
 --remove-autostart           移除开机自启
